@@ -23,10 +23,17 @@
 /* defines                                                              */
 /************************************************************************/
 
-#define LED_PIO           
-#define LED_PIO_ID        
-#define LED_PIO_IDX       
-#define LED_PIO_IDX_MASK  
+#define LED_PIO           PIOC                 // periferico que controla o LED
+// # (1)
+#define LED_PIO_ID        ID_PIOC  		       // ID do periférico PIOC (controla LED)
+#define LED_PIO_IDX       8                    // ID do LED no PIO
+#define LED_PIO_IDX_MASK  (1 << LED_PIO_IDX)   // Mascara para CONTROLARMOS o LED
+
+// Configuracoes do botao
+#define BUT_PIO			PIOA	
+#define BUT_PIO_ID		ID_PIOA // 10
+#define BUT_PIO_IDX		11
+#define BUT_PIO_IDX_MASK (1u << BUT_PIO_IDX) // esse já está pronto.
 
 /************************************************************************/
 /* constants                                                            */
@@ -53,7 +60,24 @@ void init(void);
 // Função de inicialização do uC
 void init(void)
 {
+	// Initialize the board clock
+	sysclk_init();
 
+	// Desativa WatchDog Timer
+	WDT->WDT_MR = WDT_MR_WDDIS;
+	
+	// Ativa o PIO na qual o LED foi conectado para que possamos controlar o LED.
+	pmc_enable_periph_clk(LED_PIO_ID);
+	
+	//Inicializa PC8 como saída
+	pio_set_output(LED_PIO, LED_PIO_IDX_MASK, 0, 0, 0); // A função recebe como parâmetro o PIO e a máscara LED_PIO_IDX_MASK (que representa qual pino do PIO será configurado
+	
+	// Inicializa PIO do botao
+	pmc_enable_periph_clk(BUT_PIO_ID);
+	
+	// configura pino ligado ao botão como entrada com um pull-up.
+	pio_set_input(BUT_PIO, BUT_PIO_IDX_MASK, PIO_DEFAULT);
+	pio_pull_up(BUT_PIO, BUT_PIO_IDX_MASK, 1);
 }
 
 /************************************************************************/
@@ -61,15 +85,33 @@ void init(void)
 /************************************************************************/
 
 // Funcao principal chamada na inicalizacao do uC.
-int main(void)
-{
-  init();
+int main(void) {
+	// inicializa sistema e IOs
+	init();
 
-  // super loop
-  // aplicacoes embarcadas não devem sair do while(1).
-  while (1)
-  {
+	// super loop
+	// aplicacoes embarcadas não devem sair do while(1).
+	while (1)
+	{
+		/*
+		pio_set(LED_PIO, LED_PIO_IDX_MASK);      // Coloca 1 no pino LED (desliga)
+		delay_ms(1000);                        // Delay por software de 200 ms
+		pio_clear(LED_PIO, LED_PIO_IDX_MASK);    // Coloca 0 no pino do LED (liga)
+		delay_ms(3000);                        // Delay por software de 200 ms
+		*/
+		if (pio_get(BUT_PIO, PIO_INPUT, BUT_PIO_IDX_MASK) == 0) { // Check if button is pressed
+			for (int i = 0; i < 5; i++) {
+				pio_clear(LED_PIO, LED_PIO_IDX_MASK); // Turn on LED
+				delay_ms(500);
+				pio_set(LED_PIO, LED_PIO_IDX_MASK);   // Turn off LED
+				delay_ms(500);
+			}
+			// Wait for button to be released
+			while (pio_get(BUT_PIO, PIO_INPUT, BUT_PIO_IDX_MASK) == 0) {
+				// Do nothing, just wait for button release
+			}
+		}
+	}
 
-  }
-  return 0;
+	return 0;
 }
